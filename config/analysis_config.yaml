@@ -1,0 +1,72 @@
+# Analysis Configuration for FLUXestimator Single-Cell Project
+
+# Data Processing Parameters
+preprocessing:
+  min_genes_per_cell: 200
+  min_cells_per_gene: 3
+  max_genes_per_cell: 5000
+  max_mito_percent: 10
+  target_sum: 10000  # For normalization
+
+# Quality Control
+quality_control:
+  filter_doublets: true
+  doublet_rate: 0.06
+  filter_low_quality: true
+  
+# Normalization
+normalization:
+  method: "log1p"  # log1p, scran, pearson_residuals
+  scale_max: 10
+  highly_variable_genes: 2000
+
+# Cell Type Annotation
+cell_annotation:
+  resolution: 0.8  # Leiden clustering resolution
+  n_neighbors: 15
+  n_pcs: 50
+  marker_genes:
+    # Example markers for reproductive tissue
+    Leydig_cells: ["Cyp17a1", "Hsd3b1", "Star"]
+    Sertoli_cells: ["Sox9", "Amh", "Dhh"]
+    Spermatogonia: ["Utf1", "Zbtb16", "Gfra1"]
+    Spermatocytes: ["Sycp3", "Tex14", "Prdm9"]
+    Spermatids: ["Tnp1", "Prm1", "Prm2"]
+    Germ_cells: ["Ddx4", "Dazl", "Piwil2"]
+
+# Metabolic Flux Analysis
+flux_analysis:
+  model: "recon3d"  # metabolic model to use (recon3d, iMM1415, etc.)
+  objective_function: "biomass"
+  solver: "glpk"  # glpk, cplex, gurobi
+  flux_threshold: 1e-6
+  gene_expression_threshold: 0.1
+  
+  # Pathways of interest
+  pathways:
+    - "Glycolysis / Gluconeogenesis"
+    - "TCA Cycle"
+    - "Oxidative Phosphorylation"
+    - "Fatty Acid Metabolism"
+    - "Amino Acid Metabolism"
+    - "Nucleotide Metabolism"
+    - "Steroid Biosynthesis"
+
+# Visualization
+visualization:
+  figure_format: "png"  # png, pdf, svg
+  dpi: 300
+  color_palette: "tab10"
+  umap_min_dist: 0.5
+  umap_spread: 1.0
+
+# Output
+output:
+  save_intermediate: true
+  compression: "gzip"
+  
+# Computational Resources
+compute:
+  n_jobs: -1  # -1 for all cores
+  random_state: 42
+  memory_limit: "16GB"
