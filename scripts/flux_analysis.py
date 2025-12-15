@@ -97,8 +97,11 @@ def map_genes_to_reactions(model, gene_expression):
                     gene_values.append(0.0)
             
             if len(gene_values) > 0:
-                # Simple approach: use average for AND/OR
-                # More sophisticated: parse GPR properly
+                # NOTE: This is a simplified approach using mean expression.
+                # For production use, implement proper GPR Boolean logic:
+                # - AND relationships: use minimum expression
+                # - OR relationships: use maximum expression
+                # This would require parsing reaction.gene_reaction_rule
                 reaction_expression[reaction.id] = np.mean(gene_values)
             else:
                 reaction_expression[reaction.id] = 0.0
@@ -276,12 +279,16 @@ def main():
     
     args = parser.parse_args()
     
+    # Set random seed for reproducibility (default, may be overridden by config)
+    np.random.seed(42)
+    
     # Load configuration
     print(f"Loading configuration from {args.config}")
     config = load_config(args.config)
     
-    # Set random seed
-    np.random.seed(config['compute']['random_state'])
+    # Update random seed from config if specified
+    if 'compute' in config and 'random_state' in config['compute']:
+        np.random.seed(config['compute']['random_state'])
     
     # Load data
     print(f"Loading data from {args.input}")

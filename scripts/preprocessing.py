@@ -115,7 +115,7 @@ def filter_cells_and_genes(adata, config):
     sc.pp.filter_cells(adata, max_genes=qc_params['max_genes_per_cell'])
     
     # Filter based on mitochondrial content
-    adata = adata[adata.obs['pct_counts_mt'] < qc_params['max_mito_percent'], :].copy()
+    adata = adata[adata.obs['pct_counts_mt'] < qc_params['max_mito_percent'], :]
     
     # Filter genes
     sc.pp.filter_genes(adata, min_cells=qc_params['min_cells_per_gene'])
