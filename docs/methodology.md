@@ -16,7 +16,7 @@ This document describes the computational methodology for inferring metabolic in
 #### 1.2 Quality Control
 **Cell-level filtering:**
 - Remove cells with too few genes (< 200 genes)
-- Remove cells with too many genes (> 5000 genes, potential doublets)
+- Remove cells with too many genes (> 30000 genes, potential doublets)
 - Filter cells with high mitochondrial content (> 10%)
 - Remove potential doublets using Scrublet
 

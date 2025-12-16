@@ -1,17 +1,21 @@
 # Analysis Configuration for FLUXestimator Single-Cell Project
 
+######################################
+## Script 1: Preprocessing Settings ##
+######################################
+
 # Data Processing Parameters
 preprocessing:
   min_genes_per_cell: 200
   min_cells_per_gene: 3
   max_genes_per_cell: 5000
-  max_mito_percent: 10
+  max_mito_percent: 15
   target_sum: 10000  # For normalization
 
 # Quality Control
 quality_control:
   filter_doublets: true
-  doublet_rate: 0.06
+  doublet_rate: 0.04
   filter_low_quality: true
   
 # Normalization
@@ -19,6 +23,10 @@ normalization:
   method: "log1p"  # log1p, scran, pearson_residuals
   scale_max: 10
   highly_variable_genes: 2000
+
+#############################################
+## Script 2: Cell Type Annotation Settings ##
+#############################################
 
 # Cell Type Annotation
 cell_annotation:
@@ -33,6 +41,10 @@ cell_annotation:
     Spermatocytes: ["Sycp3", "Tex14", "Prdm9"]
     Spermatids: ["Tnp1", "Prm1", "Prm2"]
     Germ_cells: ["Ddx4", "Dazl", "Piwil2"]
+
+######################################
+## Script 3: Metabolic Flux Analysis ##
+######################################
 
 # Metabolic Flux Analysis
 flux_analysis:
@@ -68,5 +80,5 @@ output:
 # Computational Resources
 compute:
   n_jobs: -1  # -1 for all cores
-  random_state: 42
+  random_state: 55
   memory_limit: "16GB"
