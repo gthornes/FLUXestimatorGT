@@ -31,16 +31,36 @@ normalization:
 # Cell Type Annotation
 cell_annotation:
   resolution: 0.8  # Leiden clustering resolution
-  n_neighbors: 15
+  n_neighbors: 20
   n_pcs: 50
   marker_genes:
     # Example markers for reproductive tissue
-    Leydig_cells: ["Cyp17a1", "Hsd3b1", "Star"]
-    Sertoli_cells: ["Sox9", "Amh", "Dhh"]
-    Spermatogonia: ["Utf1", "Zbtb16", "Gfra1"]
-    Spermatocytes: ["Sycp3", "Tex14", "Prdm9"]
-    Spermatids: ["Tnp1", "Prm1", "Prm2"]
-    Germ_cells: ["Ddx4", "Dazl", "Piwil2"]
+    Stromal / Mesenchyme (common markers): [Pdgfrb, Des, Col1a1, Col3a1, Hoxa10, Hoxa11, Sparc, Vim, Wt1]
+    Fibroblast (common markers): [Pdgfra, Cd34, Fbln1, Fbln2, Mfap5, Mmp2, Lum, Spon2]
+    Fibroblast (Clec3b+): [Clec3b, Col14a1, Cd55, Cxcl16, Efemp1, Fap, Mmp3]
+    Fibroblast (inner - subclustering): [Angpfl7, Hand2, Sfrp2]
+    Fibroblast (inner): [Aldh1a2, Cxcl14, Smoc2]
+    Fibroblast (ribosomal): [Gm42418, Gm26917, Cmss1, Hexb]
+    Fibroblast (proliferating): [Pclaf, Mki67, Top2a]
+    Mesothelium (mesothelium): [Upk3b, Fgf9]
+    Myometrium (Perivascular & Muscle) (common markers): [Acta2, Des, Myh11, Mylk, Myl9, Tagln]
+    Myometrium (smooth muscle): [Acta1, Actg2, Cnn1]
+    Perivascular / Mural Cells (common markers): [Cspg4, Mcam, Rgs4, Rgs5,Notch3, Slc7a2]
+    Perivascular (muscle): [Kitl]
+    Perivascular (pericyte): [Vtn, Kcnj8, Myo1b, Abcc9, Ednrb]
+    Endothelium (common markers): [Emcn, Tie1, Pecam1]
+    Endothelium (lymphatic): [Cldn5, Prox1, Lyve1, Flt4]
+    Endothelium (vascular): [Vwf, Flt1]
+    Epithelium (common markers): [Cdh1, Cldn7, Krt7, Krt8, Krt18, Epcam]
+    Epithelium (glandular): [Foxa2, Prss28, Prss29]
+    Epithelium (luminal): [Tacstd2, Wnt7a, Wnt7b]
+    Immune (common markers): [Ptprc]
+    Immune - monocyte (common markers): [Ctss, H2-Eb1, H2-Aa, Cd68, Itgam, Ms4a6c]
+    Immune - monocyte (macrophage): [C1qa, C1qb, Cx3cr1, Mrc1, Ms4a7, Adgre1, Cd14]
+    Immune - monocyte (dendritic): [Il1b, Ciita, Cd209a, Xcr1, Clec9a]
+    Immune (natural killer): [Itgax, Ccl5, Nkg7m, Gzmb, Prf1, Klra3, Klra4, Klra7, Klra8, Klrb1c, Klre1, Klrg1, Klri2]
+    Immune (T-cell): [Cd3d, Cd3e, Cd3g, Il2ra]
+    Immune - monocyte (proliferating): [Pclaf, Mki67, Top2a]
 
 ######################################
 ## Script 3: Metabolic Flux Analysis ##

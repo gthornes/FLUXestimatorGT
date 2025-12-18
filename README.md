@@ -6,13 +6,13 @@ A repository for a two-month lab project using FLUXestimator to infer metabolic 
 
 This project aims to analyze metabolic flux in reproductive mouse tissue at the single-cell level by integrating:
 - Single-cell RNA sequencing (scRNA-seq) data
-- FLUXestimator for metabolic flux inference
+- scFEA (single-cell Flux Estimation Analysis) for metabolic flux inference
 - Cell type-specific metabolic profiling
 
 ## Features
 
 - **Single-cell data processing**: Tools for quality control, normalization, and cell type annotation
-- **Metabolic flux estimation**: Integration with FLUXestimator for flux balance analysis
+- **Metabolic flux estimation**: Integration with scFEA for single-cell metabolic flux analysis
 - **Visualization**: Comprehensive plotting utilities for metabolic pathway analysis
 - **Reproducible workflows**: Jupyter notebooks documenting the complete analysis pipeline
 
@@ -70,6 +70,15 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+4. Clone and set up scFEA:
+```bash
+cd ..  # Go to parent directory
+git clone https://github.com/changwn/scFEA.git
+cd scFEA
+pip install torch torchvision
+# Install any additional scFEA dependencies if needed
+```
+
 ## Usage
 
 ### Quick Start
@@ -105,11 +114,14 @@ This project expects single-cell RNA-seq data in one of the following formats:
 The analysis pipeline includes:
 
 1. **Quality Control**: Filtering low-quality cells and genes
-2. **Normalization**: Log-normalization and scaling
+2. **Normalization**: Log-normalization and scaling  
 3. **Cell Type Annotation**: Clustering and marker-based identification
-4. **Metabolic Flux Estimation**: Using FLUXestimator with genome-scale metabolic models
+4. **Metabolic Flux Estimation**: Using scFEA (single-cell Flux Estimation Analysis) with graph neural networks
 5. **Differential Flux Analysis**: Comparing metabolic states across cell types
 6. **Visualization**: Pathway enrichment and flux distribution plots
+
+### scFEA Workflow
+scFEA uses a graph neural network trained on metabolic reaction networks to predict cell-specific metabolic fluxes from scRNA-seq data. It focuses on 719 curated metabolic genes and accounts for reaction stoichiometry.
 
 For detailed methodology, see [docs/methodology.md](docs/methodology.md)
 
@@ -120,14 +132,15 @@ Key packages:
 - anndata: Annotated data structures
 - numpy/pandas: Data manipulation
 - matplotlib/seaborn: Visualization
-- cobra: Constraint-based metabolic modeling
+- scFEA: Single-cell flux estimation (graph neural network-based)
+- torch: PyTorch for scFEA neural network
 - Additional packages listed in requirements.txt
 
 ## Citation
 
 If you use this code, please cite:
-- FLUXestimator: [Original FLUXestimator publication]
-- Scanpy: Wolf, F. A. et al. (2018). SCANPY: large-scale single-cell gene expression data analysis. Genome Biology.
+- scFEA: Alghamdi, N. et al. (2021). "A graph neural network model to estimate cell-wise metabolic flux using single-cell RNA-seq data." Genome Research. 31(10):1867-1884.
+- Scanpy: Wolf, F. A. et al. (2018). "SCANPY: large-scale single-cell gene expression data analysis." Genome Biology.
 
 ## License
 
