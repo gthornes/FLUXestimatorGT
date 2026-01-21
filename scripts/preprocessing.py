@@ -14,6 +14,8 @@ import scanpy as sc
 import numpy as np
 import pandas as pd
 import yaml
+import scrublet as scr
+import matplotlib.pyplot as plt
 
 
 def load_config(config_path):
@@ -66,8 +68,8 @@ def calculate_qc_metrics(adata):
     """
     print("\nCalculating QC metrics...")
     
-    # Identify mitochondrial genes
-    adata.var['mt'] = adata.var_names.str.startswith('mt-') | adata.var_names.str.startswith('MT-')
+    # Identify mitochondrial genes - check multiple prefixes
+    adata.var['mt'] = adata.var_names.str.startswith('mt-') | adata.var_names.str.startswith('MT-') | adata.var_names.str.startswith('Mt-')
     
     # Identify ribosomal genes
     adata.var['ribo'] = adata.var_names.str.startswith(('Rps', 'Rpl', 'RPS', 'RPL'))
@@ -80,10 +82,120 @@ def calculate_qc_metrics(adata):
         inplace=True
     )
     
+    n_mt_genes = adata.var['mt'].sum()
+    print(f"Found {n_mt_genes} mitochondrial genes")
     print(f"Mean genes per cell: {adata.obs['n_genes_by_counts'].mean():.0f}")
     print(f"Median genes per cell: {adata.obs['n_genes_by_counts'].median():.0f}")
     print(f"Mean counts per cell: {adata.obs['total_counts'].mean():.0f}")
     print(f"Mean mitochondrial %: {adata.obs['pct_counts_mt'].mean():.2f}%")
+
+
+def detect_doublets(adata, config, save_plot=None):
+    """
+    Detect doublets using Scrublet.
+    
+    Parameters
+    ----------
+    adata : AnnData
+        Annotated data matrix
+    config : dict
+        Configuration parameters
+    save_plot : str, optional
+        Path to save doublet detection plot
+        
+    Returns
+    -------
+    adata : AnnData
+        Data with doublet annotations added
+    """
+    print("\nDetecting doublets with Scrublet...")
+    
+    # Get expected doublet rate from config
+    expected_doublet_rate = config['quality_control'].get('doublet_rate', 0.06)
+    
+    # Run Scrublet
+    scrub = scr.Scrublet(
+        adata.X, 
+        expected_doublet_rate=expected_doublet_rate
+    )
+    doublet_scores, predicted_doublets = scrub.scrub_doublets(
+        min_counts=2,
+        min_cells=3,
+        min_gene_variability_pctl=85,
+        n_prin_comps=50
+    )
+    
+    # Add results to adata
+    adata.obs['doublet_score'] = doublet_scores
+    adata.obs['predicted_doublet'] = predicted_doublets
+    
+    # Print detailed diagnostics
+    print("=" * 60)
+    print("DOUBLET DETECTION SUMMARY")
+    print("=" * 60)
+    print(f"Total cells analyzed: {len(doublet_scores)}")
+    print(f"Expected doublet rate: {expected_doublet_rate*100:.1f}%")
+    print(f"Expected doublets: ~{int(len(doublet_scores) * expected_doublet_rate)}")
+    print(f"\nActual detected: {predicted_doublets.sum()} ({100 * predicted_doublets.sum() / len(predicted_doublets):.2f}%)")
+    print(f"Automatic threshold: {scrub.threshold_:.3f}")
+    print(f"\nDoublet score statistics:")
+    print(f"  Min: {doublet_scores.min():.3f}")
+    print(f"  25th percentile: {np.percentile(doublet_scores, 25):.3f}")
+    print(f"  Median: {np.median(doublet_scores):.3f}")
+    print(f"  75th percentile: {np.percentile(doublet_scores, 75):.3f}")
+    print(f"  95th percentile: {np.percentile(doublet_scores, 95):.3f}")
+    print(f"  99th percentile: {np.percentile(doublet_scores, 99):.3f}")
+    print(f"  Max: {doublet_scores.max():.3f}")
+    
+    # Check how many cells would be flagged at different thresholds
+    for threshold in [0.2, 0.3, 0.4, 0.5]:
+        n_doublets = (doublet_scores > threshold).sum()
+        pct = 100 * n_doublets / len(doublet_scores)
+        print(f"\nAt threshold {threshold:.2f}: {n_doublets} cells ({pct:.2f}%)")
+    
+    print("\n" + "=" * 60)
+    print("INTERPRETATION:")
+    if predicted_doublets.sum() / len(predicted_doublets) < 0.01:
+        print("⚠️  Very low detection suggests homotypic doublets dominate.")
+        print("   These are two similar cells that look like singlets.")
+        print("   Consider proceeding without aggressive doublet filtering.")
+    else:
+        print("✓ Detection rate looks reasonable.")
+    print("=" * 60)
+    
+    # Optional: save plot
+    if save_plot:
+        fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+        
+        # Histogram of doublet scores
+        axes[0].hist(doublet_scores, bins=50, edgecolor='black')
+        axes[0].set_xlabel('Doublet score')
+        axes[0].set_ylabel('Number of cells')
+        axes[0].set_title('Doublet score distribution')
+        axes[0].axvline(scrub.threshold_, color='r', linestyle='--', 
+                       label=f'Threshold ({scrub.threshold_:.3f})')
+        axes[0].legend()
+        
+        # Doublet scores vs gene count
+        scatter = axes[1].scatter(
+            adata.obs['n_genes_by_counts'], 
+            doublet_scores, 
+            c=predicted_doublets, 
+            cmap='coolwarm', 
+            s=5, 
+            alpha=0.5
+        )
+        axes[1].set_xlabel('Number of genes')
+        axes[1].set_ylabel('Doublet score')
+        axes[1].set_title('Genes vs Doublet Score')
+        plt.colorbar(scatter, ax=axes[1], label='Predicted doublet')
+        
+        plt.tight_layout()
+        plt.savefig(save_plot, dpi=150, bbox_inches='tight')
+        plt.close()
+        print(f"\nDoublet plot saved to {save_plot}")
+    
+    return adata
 
 
 def filter_cells_and_genes(adata, config):
@@ -116,6 +228,12 @@ def filter_cells_and_genes(adata, config):
     
     # Filter based on mitochondrial content
     adata = adata[adata.obs['pct_counts_mt'] < qc_params['max_mito_percent'], :]
+    
+    # Filter doublets if detected
+    if 'predicted_doublet' in adata.obs.columns:
+        n_doublets = adata.obs['predicted_doublet'].sum()
+        adata = adata[~adata.obs['predicted_doublet'], :]
+        print(f"Removed {n_doublets} predicted doublets")
     
     # Filter genes
     sc.pp.filter_genes(adata, min_cells=qc_params['min_cells_per_gene'])
@@ -251,6 +369,17 @@ def main():
         action='store_true',
         help='Skip cell and gene filtering'
     )
+    parser.add_argument(
+        '--skip-doublet-detection',
+        action='store_true',
+        help='Skip doublet detection with Scrublet'
+    )
+    parser.add_argument(
+        '--doublet-plot',
+        type=str,
+        default=None,
+        help='Path to save doublet detection plot (optional)'
+    )
     
     args = parser.parse_args()
     
@@ -270,6 +399,10 @@ def main():
     
     # Calculate QC metrics
     calculate_qc_metrics(adata)
+    
+    # Detect doublets (before filtering)
+    if not args.skip_doublet_detection:
+        adata = detect_doublets(adata, config, save_plot=args.doublet_plot)
     
     # Filter cells and genes
     if not args.skip_filtering:
