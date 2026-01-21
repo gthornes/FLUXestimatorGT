@@ -10,7 +10,7 @@ preprocessing:
   min_cells_per_gene: 3
   max_genes_per_cell: 5000
   max_mito_percent: 15
-  target_sum: 10000  # For normalization
+  target_sum: 10000  # For normalisation
 
 # Quality Control
 quality_control:
@@ -18,8 +18,8 @@ quality_control:
   doublet_rate: 0.04
   filter_low_quality: true
   
-# Normalization
-normalization:
+# Normalisation
+normalisation:
   method: "log1p"  # log1p, scran, pearson_residuals
   scale_max: 10
   highly_variable_genes: 2000
@@ -84,8 +84,8 @@ flux_analysis:
     - "Nucleotide Metabolism"
     - "Steroid Biosynthesis"
 
-# Visualization
-visualization:
+# Visualisation
+visualisation:
   figure_format: "png"  # png, pdf, svg
   dpi: 300
   color_palette: "tab10"

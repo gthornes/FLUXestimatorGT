@@ -130,9 +130,9 @@ def filter_cells_and_genes(adata, config):
     return adata
 
 
-def normalize_data(adata, config):
+def normalise_data(adata, config):
     """
-    Normalize and log-transform data.
+    Normalise and log-transform data.
     
     Parameters
     ----------
@@ -148,14 +148,14 @@ def normalize_data(adata, config):
     # Store raw counts
     adata.layers['counts'] = adata.X.copy()
     
-    # Normalize to target sum
-    sc.pp.normalize_total(adata, target_sum=config['preprocessing']['target_sum'])
+    # Normalise to target sum
+    sc.pp.normalise_total(adata, target_sum=config['preprocessing']['target_sum'])
     
     # Log transform
     if norm_params['method'] == 'log1p':
         sc.pp.log1p(adata)
     
-    # Store normalized data
+    # Store normalised data
     adata.layers['log1p_norm'] = adata.X.copy()
     
     print("Normalization complete")
@@ -275,8 +275,8 @@ def main():
     if not args.skip_filtering:
         adata = filter_cells_and_genes(adata, config)
         
-    # Normalize data
-    normalize_data(adata, config)
+    # Normalise data
+    normalise_data(adata, config)
     
     # Identify highly variable genes
     identify_highly_variable_genes(adata, config)

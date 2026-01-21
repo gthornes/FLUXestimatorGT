@@ -56,7 +56,7 @@ def main():
     print("  - Loads raw scRNA-seq data")
     print("  - Performs quality control")
     print("  - Filters cells and genes")
-    print("  - Normalizes and scales data")
+    print("  - Normalises and scales data")
     print("  - Performs PCA")
     
     print_step(2, "Cell Type Annotation")
@@ -80,16 +80,16 @@ def main():
     print("  - Performs flux balance analysis (FBA)")
     print("  - Generates cell type-specific flux predictions")
     
-    print_step(4, "Visualization")
+    print_step(4, "Visualisation")
     print("Command:")
-    print("  python scripts/visualization.py \\")
+    print("  python scripts/visualisation.py \\")
     print("    --input results/tables/flux_results.csv \\")
     print("    --output results/figures/")
     print("\nThis step:")
     print("  - Creates flux heatmaps")
     print("  - Generates distribution plots")
     print("  - Produces pathway comparison figures")
-    print("  - Summarizes metabolic activity")
+    print("  - Summarises metabolic activity")
     
     print("\n" + "="*60)
     print("Pipeline Overview Complete")

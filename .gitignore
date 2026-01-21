@@ -215,8 +215,8 @@ data/reference/*
 !data/reference/.gitkeep
 
 # Results files
-#results/figures/*
-#results/tables/*
+results/figures/*
+results/tables/*
 !results/figures/.gitkeep
 !results/tables/.gitkeep
 
