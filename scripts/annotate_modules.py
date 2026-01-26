@@ -152,8 +152,18 @@ def annotate_flux_results(flux_file, output_file=None, scfea_path=None):
     print(result_df[display_cols].head(20).to_string(index=False))
     
     if output_file:
-        result_df.to_csv(output_file, index=False)
-        print(f"\nFull annotated results saved to {output_file}")
+        # Handle directory vs file path
+        output_path = Path(output_file)
+        if output_path.is_dir() or (not output_path.suffix and not output_path.exists()):
+            # It's a directory - create a filename
+            output_path.mkdir(parents=True, exist_ok=True)
+            output_path = output_path / 'module_annotations.csv'
+        else:
+            # Ensure parent directory exists
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        result_df.to_csv(output_path, index=False)
+        print(f"\nFull annotated results saved to {output_path}")
     
     return result_df
 
@@ -205,6 +215,16 @@ def create_annotated_flux_file(flux_file, annotations, output_file=None):
     if output_file is None:
         flux_path = Path(flux_file)
         output_file = flux_path.parent / f"{flux_path.stem}_annotated.csv"
+    else:
+        output_file = Path(output_file)
+        # Handle directory vs file path
+        if output_file.is_dir() or (not output_file.suffix and not output_file.exists()):
+            # It's a directory - create a filename based on input
+            flux_path = Path(flux_file)
+            output_file = output_file / f"{flux_path.stem}_annotated.csv"
+    
+    # Ensure parent directory exists
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     
     # Save to new file
     flux_df_annotated.to_csv(output_file)
