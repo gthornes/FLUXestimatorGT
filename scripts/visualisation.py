@@ -162,13 +162,13 @@ def plot_flux_distribution(flux_df, output_path):
     # Sort cell types by median of high-flux reactions
     cell_type_order = flux_filtered.groupby('cell_type')['mean_abs_flux'].median().sort_values(ascending=False).index
     
-    # Calculate median flux for each cell type for color mapping
-    cell_type_medians = flux_filtered.groupby('cell_type')['mean_abs_flux'].median()
-    median_values = [cell_type_medians[ct] for ct in cell_type_order]
+    # Calculate mean flux for each cell type for color mapping
+    cell_type_means = flux_filtered.groupby('cell_type')['mean_abs_flux'].mean()
+    mean_values = [cell_type_means[ct] for ct in cell_type_order]
     
-    # Normalize median values to [0, 1] for colourmap
+    # Normalize mean values to [0, 1] for colourmap
     from matplotlib.colors import Normalize
-    norm = Normalize(vmin=min(median_values), vmax=max(median_values))
+    norm = Normalize(vmin=min(mean_values), vmax=max(mean_values))
     cmap = plt.cm.Reds  # Red gradient colourmap (white to red)
     
     fig, ax = plt.subplots(figsize=(18, 8))
@@ -183,9 +183,9 @@ def plot_flux_distribution(flux_df, output_path):
         showmedians=True
     )
     
-    # Colour the violins based on median flux (red gradient)
+    # Colour the violins based on mean flux (red gradient)
     for i, pc in enumerate(parts['bodies']):
-        pc.set_facecolor(cmap(norm(median_values[i])))
+        pc.set_facecolor(cmap(norm(mean_values[i])))
         pc.set_alpha(0.8)
         pc.set_edgecolor('black')
         pc.set_linewidth(1)
@@ -201,8 +201,8 @@ def plot_flux_distribution(flux_df, output_path):
     
     ax.set_xticks(range(len(cell_type_order)))
     ax.set_xticklabels(cell_type_order, rotation=45, ha='right')
-    ax.set_ylabel('Mean Module Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
-    ax.set_xlabel('Cell Type', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Module Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
+    ax.set_xlabel('Cell Type (ordered by median flux)', fontsize=12, fontweight='bold')
     ax.set_title('Distribution of High-Activity Metabolic Modules Across Cell Types\n(Top 25% most active modules)', 
                  fontsize=14, fontweight='bold', pad=20)
     ax.grid(axis='y', alpha=0.3)
@@ -212,7 +212,7 @@ def plot_flux_distribution(flux_df, output_path):
     sm = ScalarMappable(cmap=cmap, norm=norm)
     sm.set_array([])
     cbar = plt.colorbar(sm, ax=ax, pad=0.02)
-    cbar.set_label('Median Metabolic Flux\n(mmol/gDW/h)', fontsize=11, fontweight='bold')
+    cbar.set_label('Mean Metabolic Flux\n(mmol/gDW/h)', fontsize=11, fontweight='bold')
     
     # Add legend for statistical lines
     from matplotlib.lines import Line2D
@@ -227,6 +227,120 @@ def plot_flux_distribution(flux_df, output_path):
     plt.close()
     
     print(f"Saved distribution plot to {output_path}")
+
+
+def plot_flux_distribution_by_stage(flux_df, output_path):
+    """
+    Create distribution plot showing mean flux per module across cell types, separated by stage.
+    
+    Parameters
+    ----------
+    flux_df : pd.DataFrame
+        Flux results with 'stage' column
+    output_path : Path
+        Output file path
+    """
+    print(f"Creating flux distribution plot by stage...")
+    
+    # Check if stage column exists
+    if 'stage' not in flux_df.columns:
+        print("Warning: No 'stage' column found in flux data. Skipping stage-specific distribution plot.")
+        return
+    
+    # Calculate mean absolute flux per module per cell for aggregation
+    flux_summary = flux_df.groupby(['cell_type', 'stage', 'reaction_id'])['flux'].apply(
+        lambda x: np.abs(x).mean()
+    ).reset_index(name='mean_abs_flux')
+    
+    # Filter to keep only meaningful fluxes (above 75th percentile)
+    threshold = flux_summary['mean_abs_flux'].quantile(0.75)
+    flux_filtered = flux_summary[flux_summary['mean_abs_flux'] > threshold]
+    
+    # Get unique stages and ensure estrus is first
+    stages = sorted(flux_filtered['stage'].unique())
+    if 'estrus' in stages and 'diestrus' in stages:
+        stages = ['estrus', 'diestrus']
+    
+    # Sort cell types by overall median flux
+    cell_type_order = flux_filtered.groupby('cell_type')['mean_abs_flux'].median().sort_values(ascending=False).index
+    
+    # Create single figure with paired violins
+    fig, ax = plt.subplots(figsize=(20, 8))
+    
+    # Color scheme: estrus = blue, diestrus = red
+    stage_colors = {'estrus': 'cyan', 'diestrus': 'royalblue'}
+    
+    # Calculate positions for paired violins
+    # Each cell type gets 2 positions (estrus and diestrus) with a gap between cell types
+    spacing = 3  # Space between cell type pairs
+    violin_width = 1.0
+    
+    all_parts = []
+    all_positions = []
+    all_colors = []
+    
+    for i, cell_type in enumerate(cell_type_order):
+        base_pos = i * spacing
+        
+        for j, stage in enumerate(stages):
+            stage_data = flux_filtered[(flux_filtered['stage'] == stage) & 
+                                       (flux_filtered['cell_type'] == cell_type)]
+            
+            if len(stage_data) > 0:
+                pos = base_pos + j * violin_width
+                all_positions.append(pos)
+                
+                # Create individual violin plot
+                parts = ax.violinplot(
+                    [stage_data['mean_abs_flux'].values],
+                    positions=[pos],
+                    widths=violin_width * 0.9,
+                    showmeans=True,
+                    showmedians=True
+                )
+                
+                # Color the violin
+                for pc in parts['bodies']:
+                    pc.set_facecolor(stage_colors[stage])
+                    pc.set_alpha(0.7)
+                    pc.set_edgecolor('black')
+                    pc.set_linewidth(1)
+                
+                # Style the statistical lines
+                parts['cmeans'].set_color('darkred')
+                parts['cmeans'].set_linewidth(1.5)
+                parts['cmedians'].set_color('black')
+                parts['cmedians'].set_linewidth(1.5)
+                parts['cbars'].set_color('black')
+                parts['cmins'].set_color('black')
+                parts['cmaxes'].set_color('black')
+    
+    # Set x-axis ticks at the center of each cell type pair
+    cell_type_centers = [i * spacing + violin_width / 2 for i in range(len(cell_type_order))]
+    ax.set_xticks(cell_type_centers)
+    ax.set_xticklabels(cell_type_order, rotation=45, ha='right', fontsize=9)
+    
+    ax.set_ylabel('Mean Module Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
+    ax.set_xlabel('Cell Type', fontsize=12, fontweight='bold')
+    ax.set_title('Distribution of High-Activity Metabolic Modules by Stage\n(Top 25% most active modules)', 
+                 fontsize=16, fontweight='bold', pad=20)
+    ax.grid(axis='y', alpha=0.3)
+    
+    # Add legend
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor='cyan', alpha=0.7, edgecolor='black', label='Estrus'),
+        Patch(facecolor='royalblue', alpha=0.7, edgecolor='black', label='Diestrus'),
+        plt.Line2D([0], [0], color='darkred', linewidth=1.5, label='Mean'),
+        plt.Line2D([0], [0], color='black', linewidth=1.5, label='Median')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=11, framealpha=0.95)
+    
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Saved stage-specific distribution plot to {output_path}")
 
 
 def plot_pathway_comparison(flux_df, output_path, annotations=None, pathway_reactions=None):
@@ -381,6 +495,260 @@ def plot_metabolic_summary(flux_df, output_dir):
     print(f"Saved summary plots to {output_dir}")
 
 
+def plot_flux_by_category_and_stage(flux_df, output_path, annotations=None):
+    """
+    Create bar plot comparing metabolic category activity between cycle stages.
+    
+    Parameters
+    ----------
+    flux_df : pd.DataFrame
+        Flux results with 'reaction_id', 'flux', 'cell_type', and 'stage' columns
+    output_path : Path
+        Output file path
+    annotations : pd.DataFrame, optional
+        Module annotations with 'pathway' column
+    """
+    print(f"\nCreating metabolic category comparison by stage...")
+    
+    # Check if stage column exists
+    if 'stage' not in flux_df.columns:
+        print("Warning: No 'stage' column found in flux data. Skipping category-by-stage plot.")
+        return
+    
+    # Check if annotations available
+    if annotations is None:
+        print("Warning: No module annotations available. Cannot group by metabolic category.")
+        return
+    
+    # Extract module ID from reaction_id (in case it's annotated with descriptions)
+    import re
+    def extract_module_id(name):
+        match = re.search(r'(M_\d+)', str(name))
+        return match.group(1) if match else name
+    
+    flux_df = flux_df.copy()
+    flux_df['module_id'] = flux_df['reaction_id'].apply(extract_module_id)
+    
+    # Merge with annotations to get pathway category
+    flux_with_category = flux_df.merge(
+        annotations[['pathway']], 
+        left_on='module_id', 
+        right_index=True, 
+        how='left'
+    )
+    
+    # Remove rows without pathway annotation
+    flux_with_category = flux_with_category.dropna(subset=['pathway'])
+    
+    if len(flux_with_category) == 0:
+        print("Error: No modules matched with pathway annotations")
+        return
+    
+    # Calculate mean absolute flux per category per stage
+    category_flux = flux_with_category.groupby(['pathway', 'stage'])['flux'].apply(
+        lambda x: np.abs(x).mean()
+    ).reset_index(name='mean_flux')
+    
+    # Get unique stages
+    stages = sorted(category_flux['stage'].unique())
+    if len(stages) < 2:
+        print(f"Warning: Only {len(stages)} stage(s) found. Need at least 2 for comparison.")
+        return
+    
+    # Pivot for easier plotting
+    category_pivot = category_flux.pivot(
+        index='pathway',
+        columns='stage',
+        values='mean_flux'
+    ).fillna(0)
+    
+    # Sort by total activity across both stages
+    category_pivot['total'] = category_pivot.sum(axis=1)
+    category_pivot = category_pivot.sort_values('total', ascending=False).drop('total', axis=1)
+    
+    # Create grouped bar plot
+    fig, ax = plt.subplots(figsize=(14, 8))
+    
+    x = np.arange(len(category_pivot.index))
+    width = 0.35
+    
+    # Color scheme matching stage distribution plot
+    colors = {'estrus': 'steelblue', 'diestrus': 'coral'}
+    
+    # Plot bars for each stage
+    for i, stage in enumerate(stages):
+        offset = width * (i - 0.5)
+        color = colors.get(stage, f'C{i}')
+        ax.bar(x + offset, category_pivot[stage], width, 
+               label=stage.capitalize(), color=color, alpha=0.8, edgecolor='black')
+    
+    ax.set_xlabel('Metabolic Category', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Mean Metabolic Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
+    ax.set_title('Metabolic Activity by Category Across Cycle Stages', 
+                 fontsize=14, fontweight='bold', pad=20)
+    ax.set_xticks(x)
+    ax.set_xticklabels(category_pivot.index, rotation=45, ha='right', fontsize=10)
+    ax.legend(title='Cycle Stage', fontsize=11, title_fontsize=12)
+    ax.grid(axis='y', alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # Print summary statistics
+    print("\nMetabolic Category Activity Summary:")
+    print(category_pivot.to_string())
+    
+    # Calculate fold changes
+    if 'estrus' in stages and 'diestrus' in stages:
+        fold_changes = (category_pivot['diestrus'] / (category_pivot['estrus'] + 1e-10))
+        print("\nDiestrus/Estrus Fold Changes:")
+        for pathway, fc in fold_changes.sort_values(ascending=False).items():
+            print(f"  {pathway}: {fc:.2f}x")
+    
+    print(f"Saved category-by-stage plot to {output_path}")
+
+
+def plot_flux_vs_gene_count(flux_df, output_path, module_gene_file=None):
+    """
+    Test correlation between module flux and number of genes per module.
+    
+    Parameters
+    ----------
+    flux_df : pd.DataFrame
+        Flux results in long format with 'reaction_id' and 'flux' columns
+    output_path : Path
+        Output file path
+    module_gene_file : str or Path, optional
+        Path to module-gene mapping file from scFEA
+    """
+    print(f"\nCreating flux vs. gene count analysis...")
+    
+    # Try to find the scFEA module gene file (m168 format)
+    possible_paths = [
+        Path('../../scFEA/data/module_gene_m168.csv'),
+        Path('../../scFEA/data/module_gene_complete_mouse_m168.csv'),
+        Path('../scFEA/data/module_gene_m168.csv'),
+    ]
+    
+    if module_gene_file:
+        possible_paths.insert(0, Path(module_gene_file))
+    
+    module_gene_path = None
+    for path in possible_paths:
+        if path.exists():
+            module_gene_path = path
+            print(f"Found module-gene file at: {path}")
+            break
+    
+    if module_gene_path is None:
+        print(f"Warning: Module-gene file not found. Tried:")
+        for path in possible_paths:
+            print(f"  - {path.absolute()}")
+        print("Skipping flux vs. gene count analysis")
+        return
+    
+    # Parse module-gene CSV to count genes per module
+    # Format: M_1,gene1,gene2,gene3,...
+    try:
+        module_gene_counts = {}
+        with open(module_gene_path, 'r') as f:
+            for line in f:
+                parts = line.strip().split(',')
+                if len(parts) < 2:
+                    continue
+                module_id = parts[0]
+                # Skip header rows or non-module rows
+                if not module_id.startswith('M_'):
+                    continue
+                genes = parts[1:]  # All remaining columns are genes
+                module_gene_counts[module_id] = len(genes)
+        
+        print(f"Counted genes for {len(module_gene_counts)} modules")
+        print(f"Sample: {list(module_gene_counts.items())[:5]}")
+        
+    except Exception as e:
+        print(f"Error parsing module-gene file: {e}")
+        return
+    
+    # Calculate mean absolute flux per module across all cells
+    mean_flux_per_module = flux_df.groupby('reaction_id')['flux'].apply(
+        lambda x: np.abs(x).mean()
+    ).reset_index()
+    mean_flux_per_module.columns = ['module', 'mean_flux']
+    
+    print(f"Sample module names in flux data: {mean_flux_per_module['module'].head(10).tolist()}")
+    
+    # Extract M_XX pattern from annotated module names if needed
+    import re
+    def extract_module_id(name):
+        match = re.search(r'(M_\d+)', str(name))
+        return match.group(1) if match else name
+    
+    mean_flux_per_module['module_id'] = mean_flux_per_module['module'].apply(extract_module_id)
+    
+    # Add gene counts using extracted module IDs
+    mean_flux_per_module['gene_count'] = mean_flux_per_module['module_id'].map(module_gene_counts)
+    
+    # Remove modules without gene count data
+    analysis_df = mean_flux_per_module.dropna(subset=['gene_count'])
+    
+    if len(analysis_df) < 2:
+        print(f"Error: Only {len(analysis_df)} modules matched")
+        print(f"Tried to match: {mean_flux_per_module['module_id'].unique()[:10]}")
+        print("Skipping analysis")
+        return
+    
+    print(f"Analyzing {len(analysis_df)} modules")
+    
+    # Calculate correlations
+    from scipy.stats import pearsonr, spearmanr, linregress
+    pearson_r, pearson_p = pearsonr(analysis_df['gene_count'], analysis_df['mean_flux'])
+    spearman_r, spearman_p = spearmanr(analysis_df['gene_count'], analysis_df['mean_flux'])
+    
+    print(f"Pearson correlation: r={pearson_r:.3f}, p={pearson_p:.2e}")
+    print(f"Spearman correlation: r={spearman_r:.3f}, p={spearman_p:.2e}")
+    
+    # Create figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    
+    # Linear scale scatter plot
+    axes[0].scatter(analysis_df['gene_count'], analysis_df['mean_flux'], 
+                    alpha=0.6, s=50, color='steelblue')
+    axes[0].set_xlabel('Number of Genes in Module', fontsize=11, fontweight='bold')
+    axes[0].set_ylabel('Mean Metabolic Flux', fontsize=11, fontweight='bold')
+    axes[0].set_title(f'Flux vs. Gene Count per Module\nPearson r={pearson_r:.3f}, p={pearson_p:.2e}', 
+                      fontsize=12, fontweight='bold')
+    axes[0].grid(alpha=0.3)
+    
+    # Add regression line
+    slope, intercept, r_value, p_value, std_err = linregress(analysis_df['gene_count'], 
+                                                               analysis_df['mean_flux'])
+    x_line = np.linspace(analysis_df['gene_count'].min(), analysis_df['gene_count'].max(), 100)
+    axes[0].plot(x_line, slope * x_line + intercept, 'r--', alpha=0.8, linewidth=2, 
+                 label=f'y = {slope:.4f}x + {intercept:.4f}')
+    axes[0].legend(loc='upper left', fontsize=9)
+    
+    # Log-scale version
+    axes[1].scatter(analysis_df['gene_count'], analysis_df['mean_flux'], 
+                    alpha=0.6, s=50, color='coral')
+    axes[1].set_xlabel('Number of Genes in Module', fontsize=11, fontweight='bold')
+    axes[1].set_ylabel('Mean Metabolic Flux (log scale)', fontsize=11, fontweight='bold')
+    axes[1].set_yscale('log')
+    axes[1].set_title(f'Flux vs. Gene Count (Log Scale)\nSpearman r={spearman_r:.3f}, p={spearman_p:.2e}', 
+                      fontsize=12, fontweight='bold')
+    axes[1].grid(alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    # Print modules with highest gene counts
+    print("\nModules with most genes:")
+    top_gene_counts = analysis_df.nlargest(10, 'gene_count')[['module', 'gene_count', 'mean_flux']]
+    print(top_gene_counts.to_string(index=False))
+    
+    print(f"Saved flux vs. gene count plot to {output_path}")
 def main():
     parser = argparse.ArgumentParser(
         description='Visualise flux analysis results'
@@ -436,25 +804,48 @@ def main():
     
     cell_metadata = pd.read_csv(metadata_path, index_col=0)
     
-    # Merge flux results with cell types
-    flux_df = flux_df.join(cell_metadata['cell_type'], how='left')
+    # Use refined_cell_type if available (from subclustering), otherwise use cell_type
+    if 'refined_cell_type' in cell_metadata.columns:
+        celltype_col = 'refined_cell_type'
+        print("✓ Using refined_cell_type from subclustering")
+    else:
+        celltype_col = 'cell_type'
+        print("⚠ Using basic cell_type (no subclustering available)")
     
-    # Filter out 'Ignore' cell type
-    flux_df = flux_df[flux_df['cell_type'] != 'Ignore']
+    # Merge flux results with cell types and stage (if available)
+    metadata_cols_to_join = [celltype_col]
+    if 'stage' in cell_metadata.columns:
+        metadata_cols_to_join.append('stage')
+        print("✓ Stage information available for stage-specific plots")
+    else:
+        print("⚠ No stage information - stage-specific plots will be skipped")
+    
+    flux_df = flux_df.join(cell_metadata[metadata_cols_to_join], how='left')
+    flux_df.rename(columns={celltype_col: 'cell_type'}, inplace=True)
+    
+    # Filter out 'Ignore' and 'Inconclusive' cell types
+    flux_df = flux_df[~flux_df['cell_type'].isin(['Ignore', 'Inconclusive'])]
     
     # Reshape from wide format (modules as columns) to long format (reaction_id, cell_type, flux)
     # Get module columns (M_1, M_2, etc.)
     module_cols = [col for col in flux_df.columns if col.startswith('M_')]
     
+    # Determine which metadata columns to preserve during melt
+    id_vars = ['cell_type']
+    cols_to_keep = module_cols + ['cell_type']
+    if 'stage' in flux_df.columns:
+        id_vars.append('stage')
+        cols_to_keep.append('stage')
+    
     # Melt the dataframe to long format
-    flux_df = flux_df[module_cols + ['cell_type']].melt(
-        id_vars=['cell_type'],
+    flux_df = flux_df[cols_to_keep].melt(
+        id_vars=id_vars,
         value_vars=module_cols,
         var_name='reaction_id',
         value_name='flux'
     )
     
-    print(f"Loaded {len(flux_df)} flux predictions for {flux_df['cell_type'].nunique()} cell types")
+    print(f"Loaded {len(flux_df)} flux predictions for {flux_df['cell_type'].nunique()} cell types (with subclustering)")
     
     # Create output directory
     output_dir = Path(args.output)
@@ -474,6 +865,17 @@ def main():
         output_dir / f'flux_distribution.{fmt}'
     )
     
+    plot_flux_distribution_by_stage(
+        flux_df,
+        output_dir / f'flux_distribution_by_stage.{fmt}'
+    )
+    
+    plot_flux_by_category_and_stage(
+        flux_df,
+        output_dir / f'flux_by_category_and_stage.{fmt}',
+        annotations=annotations
+    )
+    
     plot_pathway_comparison(
         flux_df,
         output_dir / f'pathway_comparison.{fmt}',
@@ -483,6 +885,11 @@ def main():
     plot_metabolic_summary(
         flux_df,
         output_dir
+    )
+    
+    plot_flux_vs_gene_count(
+        flux_df,
+        output_dir / f'flux_vs_gene_count.{fmt}'
     )
     
     print("\nvisualisation complete!")

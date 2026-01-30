@@ -31,7 +31,7 @@ normalisation:
 # Cell Type Annotation
 cell_annotation:
   resolution: 0.8  # Leiden clustering resolution
-  n_neighbors: 20
+  n_neighbors: 15
   n_pcs: 50
   marker_genes:
     # Example markers for reproductive tissue
