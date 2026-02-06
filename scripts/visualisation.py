@@ -200,7 +200,7 @@ def plot_flux_distribution(flux_df, output_path):
     parts['cmaxes'].set_color('black')
     
     ax.set_xticks(range(len(cell_type_order)))
-    ax.set_xticklabels(cell_type_order, rotation=45, ha='right')
+    ax.set_xticklabels(cell_type_order, rotation=90, ha='right')
     ax.set_ylabel('Module Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
     ax.set_xlabel('Cell Type (ordered by median flux)', fontsize=12, fontweight='bold')
     ax.set_title('Distribution of High-Activity Metabolic Modules Across Cell Types\n(Top 25% most active modules)', 
@@ -257,7 +257,7 @@ def plot_flux_distribution_by_stage(flux_df, output_path):
     flux_filtered = flux_summary[flux_summary['mean_abs_flux'] > threshold]
     
     # Get unique stages and ensure estrus is first
-    stages = sorted(flux_filtered['stage'].unique())
+    stages = sorted(flux_filtered['stage'].unique(), reverse=True)  # estrus first alphabetically
     if 'estrus' in stages and 'diestrus' in stages:
         stages = ['estrus', 'diestrus']
     
@@ -267,8 +267,8 @@ def plot_flux_distribution_by_stage(flux_df, output_path):
     # Create single figure with paired violins
     fig, ax = plt.subplots(figsize=(20, 8))
     
-    # Color scheme: estrus = blue, diestrus = red
-    stage_colors = {'estrus': 'cyan', 'diestrus': 'royalblue'}
+    # Color scheme: estrus = red, diestrus = slateblue
+    stage_colors = {'estrus': 'red', 'diestrus': 'slateblue'}
     
     # Calculate positions for paired violins
     # Each cell type gets 2 positions (estrus and diestrus) with a gap between cell types
@@ -318,7 +318,7 @@ def plot_flux_distribution_by_stage(flux_df, output_path):
     # Set x-axis ticks at the center of each cell type pair
     cell_type_centers = [i * spacing + violin_width / 2 for i in range(len(cell_type_order))]
     ax.set_xticks(cell_type_centers)
-    ax.set_xticklabels(cell_type_order, rotation=45, ha='right', fontsize=9)
+    ax.set_xticklabels(cell_type_order, rotation=90, ha='right', fontsize=9)
     
     ax.set_ylabel('Mean Module Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
     ax.set_xlabel('Cell Type', fontsize=12, fontweight='bold')
@@ -329,8 +329,8 @@ def plot_flux_distribution_by_stage(flux_df, output_path):
     # Add legend
     from matplotlib.patches import Patch
     legend_elements = [
-        Patch(facecolor='cyan', alpha=0.7, edgecolor='black', label='Estrus'),
-        Patch(facecolor='royalblue', alpha=0.7, edgecolor='black', label='Diestrus'),
+        Patch(facecolor='red', alpha=0.7, edgecolor='black', label='Estrus'),
+        Patch(facecolor='slateblue', alpha=0.7, edgecolor='black', label='Diestrus'),
         plt.Line2D([0], [0], color='darkred', linewidth=1.5, label='Mean'),
         plt.Line2D([0], [0], color='black', linewidth=1.5, label='Median')
     ]
@@ -355,73 +355,67 @@ def plot_pathway_comparison(flux_df, output_path, annotations=None, pathway_reac
         Output file path
     annotations : pd.DataFrame, optional
         Module annotations
-    pathway_reactions : dict
-        Mapping of pathway names to reaction IDs
     """
     print(f"Creating pathway comparison plot...")
+        
+    # Calculate mean absolute flux per cell type and reaction
+    flux_agg = flux_df.groupby(['cell_type', 'reaction_id'])['flux'].apply(
+        lambda x: np.abs(x).mean()
+    ).reset_index(name='mean_abs_flux')
     
-    if pathway_reactions is None:
-        # Default: show top reactions for top cell types
-        print("No pathway mapping provided, showing top reactions for most active cell types")
-        
-        # Calculate mean absolute flux per cell type and reaction
-        flux_agg = flux_df.groupby(['cell_type', 'reaction_id'])['flux'].apply(
-            lambda x: np.abs(x).mean()
-        ).reset_index(name='mean_abs_flux')
-        
-        # Get top 5 cell types by overall metabolic activity
-        cell_type_activity = flux_agg.groupby('cell_type')['mean_abs_flux'].mean().nlargest(5)
-        top_cell_types = cell_type_activity.index.tolist()
-        
-        # Filter to top cell types
-        flux_top_cells = flux_agg[flux_agg['cell_type'].isin(top_cell_types)]
-        
-        # Get top 10 reactions by variance across these cell types
-        flux_pivot_temp = flux_top_cells.pivot(
-            index='reaction_id',
-            columns='cell_type',
-            values='mean_abs_flux'
-        ).fillna(0)
-        
-        reaction_var = flux_pivot_temp.var(axis=1).nlargest(10)
-        top_reactions = reaction_var.index.tolist()
-        
-        # Filter to top reactions
-        flux_final = flux_top_cells[flux_top_cells['reaction_id'].isin(top_reactions)]
-        
-        # Create final pivot for plotting
-        flux_pivot = flux_final.pivot(
-            index='reaction_id',
-            columns='cell_type',
-            values='mean_abs_flux'
-        ).fillna(0)
-        
-        # Reorder by total flux
-        flux_pivot = flux_pivot.loc[flux_pivot.sum(axis=1).sort_values(ascending=False).index]
-        
-        # Add pathway labels if annotations available
-        if annotations is not None:
-            y_labels = []
-            for module_id in flux_pivot.index:
-                if module_id in annotations.index:
-                    pathway = annotations.loc[module_id, 'pathway']
-                    desc = annotations.loc[module_id, 'description']
-                    y_labels.append(desc)
-                else:
-                    y_labels.append(module_id)
-        else:
-            y_labels = flux_pivot.index
-        
-        fig, ax = plt.subplots(figsize=(12, 8))
-        
-        flux_pivot.plot(kind='barh', ax=ax, width=0.8)
-        ax.set_yticklabels(y_labels, fontsize=9)
-        ax.set_xlabel('Mean Absolute Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
-        ax.set_ylabel('Metabolic Module', fontsize=12, fontweight='bold')
-        ax.set_title(f'Top 10 Variable Modules Across {len(top_cell_types)} Most Active Cell Types',
-                     fontsize=13, fontweight='bold')
-        ax.legend(title='Cell Type', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
-        ax.grid(axis='x', alpha=0.3)
+    # Get top 5 cell types by overall metabolic activity
+    cell_type_activity = flux_agg.groupby('cell_type')['mean_abs_flux'].mean().nlargest(10)
+    top_cell_types = cell_type_activity.index.tolist()
+    
+    # Filter to top cell types
+    flux_top_cells = flux_agg[flux_agg['cell_type'].isin(top_cell_types)]
+    
+    # Get top 10 reactions by variance across these cell types
+    flux_pivot_temp = flux_top_cells.pivot(
+        index='reaction_id',
+        columns='cell_type',
+        values='mean_abs_flux'
+    ).fillna(0)
+    
+    reaction_var = flux_pivot_temp.var(axis=1).nlargest(10)
+    top_reactions = reaction_var.index.tolist()
+    
+    # Filter to top reactions
+    flux_final = flux_top_cells[flux_top_cells['reaction_id'].isin(top_reactions)]
+    
+    # Create final pivot for plotting
+    flux_pivot = flux_final.pivot(
+        index='reaction_id',
+        columns='cell_type',
+        values='mean_abs_flux'
+    ).fillna(0)
+    
+    # Reorder by total flux
+    flux_pivot = flux_pivot.loc[flux_pivot.sum(axis=1).sort_values(ascending=False).index]
+    
+    # Add pathway labels if annotations available
+    if annotations is not None:
+        y_labels = []
+        for module_id in flux_pivot.index:
+            if module_id in annotations.index:
+                pathway = annotations.loc[module_id, 'pathway']
+                desc = annotations.loc[module_id, 'description']
+                y_labels.append(desc)
+            else:
+                y_labels.append(module_id)
+    else:
+        y_labels = flux_pivot.index
+    
+    fig, ax = plt.subplots(figsize=(12, 8))
+    
+    flux_pivot.plot(kind='barh', ax=ax, width=0.8)
+    ax.set_yticklabels(y_labels, fontsize=9)
+    ax.set_xlabel('Mean Absolute Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Metabolic Module', fontsize=12, fontweight='bold')
+    ax.set_title(f'Top 10 Variable Modules Across {len(top_cell_types)} Most Active Cell Types',
+                    fontsize=13, fontweight='bold')
+    ax.legend(title='Cell Type', bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
+    ax.grid(axis='x', alpha=0.3)
     
     plt.tight_layout()
     plt.savefig(output_path, dpi=300)
@@ -462,7 +456,7 @@ def plot_metabolic_summary(flux_df, output_dir):
     ax.set_xlabel('Cell Type', fontsize=12)
     ax.set_ylabel('Mean Absolute Flux', fontsize=12)
     ax.set_title('Average Metabolic Activity', fontsize=14, fontweight='bold')
-    ax.tick_params(axis='x', rotation=45, labelsize=10)
+    ax.tick_params(axis='x', rotation=90, labelsize=10)
     ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
     plt.savefig(output_dir / f'metabolic_summary_mean.{fmt}', dpi=300)
@@ -474,7 +468,7 @@ def plot_metabolic_summary(flux_df, output_dir):
     ax.set_xlabel('Cell Type', fontsize=12)
     ax.set_ylabel('Number of Active Reactions', fontsize=12)
     ax.set_title('Metabolic Pathway Breadth', fontsize=14, fontweight='bold')
-    ax.tick_params(axis='x', rotation=45, labelsize=10)
+    ax.tick_params(axis='x', rotation=90, labelsize=10)
     ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
     plt.savefig(output_dir / f'metabolic_summary_breadth.{fmt}', dpi=300)
@@ -486,7 +480,7 @@ def plot_metabolic_summary(flux_df, output_dir):
     ax.set_xlabel('Cell Type', fontsize=12)
     ax.set_ylabel('Maximum Absolute Flux', fontsize=12)
     ax.set_title('Peak Metabolic Activity', fontsize=14, fontweight='bold')
-    ax.tick_params(axis='x', rotation=45, labelsize=10)
+    ax.tick_params(axis='x', rotation=90, labelsize=10)
     ax.grid(axis='y', alpha=0.3)
     plt.tight_layout()
     plt.savefig(output_dir / f'metabolic_summary_peak.{fmt}', dpi=300)
@@ -573,7 +567,7 @@ def plot_flux_by_category_and_stage(flux_df, output_path, annotations=None):
     width = 0.35
     
     # Color scheme matching stage distribution plot
-    colors = {'estrus': 'steelblue', 'diestrus': 'coral'}
+    colors = {'estrus': 'red', 'diestrus': 'slateblue'}
     
     # Plot bars for each stage
     for i, stage in enumerate(stages):
@@ -587,7 +581,7 @@ def plot_flux_by_category_and_stage(flux_df, output_path, annotations=None):
     ax.set_title('Metabolic Activity by Category Across Cycle Stages', 
                  fontsize=14, fontweight='bold', pad=20)
     ax.set_xticks(x)
-    ax.set_xticklabels(category_pivot.index, rotation=45, ha='right', fontsize=10)
+    ax.set_xticklabels(category_pivot.index, rotation=90, ha='right', fontsize=10)
     ax.legend(title='Cycle Stage', fontsize=11, title_fontsize=12)
     ax.grid(axis='y', alpha=0.3)
     
@@ -714,7 +708,7 @@ def plot_flux_vs_gene_count(flux_df, output_path, module_gene_file=None):
     
     # Linear scale scatter plot
     axes[0].scatter(analysis_df['gene_count'], analysis_df['mean_flux'], 
-                    alpha=0.6, s=50, color='steelblue')
+                    alpha=0.6, s=50, color='cyan')
     axes[0].set_xlabel('Number of Genes in Module', fontsize=11, fontweight='bold')
     axes[0].set_ylabel('Mean Metabolic Flux', fontsize=11, fontweight='bold')
     axes[0].set_title(f'Flux vs. Gene Count per Module\nPearson r={pearson_r:.3f}, p={pearson_p:.2e}', 
@@ -731,7 +725,7 @@ def plot_flux_vs_gene_count(flux_df, output_path, module_gene_file=None):
     
     # Log-scale version
     axes[1].scatter(analysis_df['gene_count'], analysis_df['mean_flux'], 
-                    alpha=0.6, s=50, color='coral')
+                    alpha=0.6, s=50, color='orange')
     axes[1].set_xlabel('Number of Genes in Module', fontsize=11, fontweight='bold')
     axes[1].set_ylabel('Mean Metabolic Flux (log scale)', fontsize=11, fontweight='bold')
     axes[1].set_yscale('log')
@@ -749,6 +743,7 @@ def plot_flux_vs_gene_count(flux_df, output_path, module_gene_file=None):
     print(top_gene_counts.to_string(index=False))
     
     print(f"Saved flux vs. gene count plot to {output_path}")
+
 def main():
     parser = argparse.ArgumentParser(
         description='Visualise flux analysis results'
