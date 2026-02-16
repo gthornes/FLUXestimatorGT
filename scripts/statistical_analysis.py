@@ -29,6 +29,45 @@ def load_config(config_path):
     return config
 
 
+def clean_cell_type_name(cell_type):
+    """
+    Clean cell type names by removing unnecessary 'Cells' suffix.
+    
+    Parameters
+    ----------
+    cell_type : str
+        Original cell type name
+        
+    Returns
+    -------
+    str
+        Cleaned cell type name
+    """
+    if pd.isna(cell_type):
+        return cell_type
+    
+    # Mapping for specific conversions
+    mapping = {
+        'Fibroblast Cells': 'Fibroblasts',
+        'Inner Fibroblast Cells': 'Inner Fibroblasts',
+        'Fibroblast Clec3b+ (outer/basal) Cells': 'Fibroblasts Clec3b+ (outer/basal)',
+        'Proliferating Fibroblast Cells': 'Proliferating Fibroblasts',
+        'Macrophage Cells': 'Macrophages',
+        'Monocyte Cells': 'Monocytes',
+        'Dendritic Monocyte Cells': 'Dendritic Monocytes',
+        'Luminal Epithelial Cells': 'Luminal Epithelium',
+        'Glandular Epithelial Cells': 'Glandular Epithelium',
+        'Vascular Smooth Muscle Cells': 'Vascular Smooth Muscle',
+        'Myometrial Cells': 'Myometrium',
+        'Vascular Endothelial Cells': 'Vascular Endothelium',
+        'Lymphatic Endothelial Cells': 'Lymphatic Endothelium',
+        'Mesothelial Cells': 'Mesothelium',
+        'Pericyte Cells': 'Pericytes',
+    }
+    
+    return mapping.get(cell_type, cell_type)
+
+
 def load_module_annotations(annotations_path=None):
     """
     Load module pathway annotations.
@@ -109,7 +148,7 @@ def differential_flux_analysis_by_stage(flux_df, cell_type, annotations=None, fd
     flux_df : pd.DataFrame
         Flux data in long format with 'reaction_id', 'cell_type', 'stage', 'flux' columns
     cell_type : str
-        Cell type to analyze
+        Cell type to analyse
     annotations : pd.DataFrame, optional
         Module annotations
     fdr_threshold : float
@@ -120,7 +159,7 @@ def differential_flux_analysis_by_stage(flux_df, cell_type, annotations=None, fd
     pd.DataFrame
         Results table with statistics for each module
     """
-    print(f"\nAnalyzing {cell_type}...")
+    print(f"\nAnalysing {cell_type}...")
     
     # Filter to this cell type
     ct_data = flux_df[flux_df['cell_type'] == cell_type].copy()
@@ -384,8 +423,8 @@ def plot_significant_modules_summary(all_results_df, output_path, fdr_threshold=
     x = np.arange(len(summary.index))
     bars = ax.bar(x, summary['n_significant'], color='steelblue', edgecolor='black', alpha=0.8)
     
-    # Color bars by percentage
-    colors = plt.cm.RdYlGn(summary['pct_significant'] / summary['pct_significant'].max())
+    # Color bars by percentage - green scale from dark (high) to light (low)
+    colors = plt.cm.Greens(summary['pct_significant'] / summary['pct_significant'].max())
     for bar, color in zip(bars, colors):
         bar.set_facecolor(color)
     
@@ -553,7 +592,7 @@ def plot_module_correlation_network(flux_df, output_path, annotations=None, min_
     top_n : int
         Number of most variable modules to include (default: 30)
     stage : str, optional
-        Specific stage to analyze (e.g., 'estrus' or 'diestrus'). If None, uses all stages.
+        Specific stage to analyse (e.g., 'estrus' or 'diestrus'). If None, uses all stages.
     pathway_colors : dict, optional
         Predefined color mapping for pathways to ensure consistency across plots
     """
@@ -934,7 +973,7 @@ def plot_overall_celltype_comparison(flux_df, output_path, top_n=10):
     ax.set_title('Overall Cell Type Flux Comparison\n(Pooled Across All Modules)',
                  fontsize=14, fontweight='bold', pad=20)
     
-    ax.legend(loc='best', fontsize=10)
+    # ax.legend(loc='best', fontsize=10)
     ax.grid(alpha=0.3)
     ax.set_aspect('equal', adjustable='box')
     
@@ -999,7 +1038,7 @@ def plot_flux_distribution_by_stage(flux_df, output_path):
     ax1.set_xlabel(r'$\log_{10}$(Flux)', fontsize=11, fontweight='bold')
     ax1.set_ylabel('Density', fontsize=11, fontweight='bold')
     ax1.set_title('Flux Distribution (Log Scale)', fontsize=12, fontweight='bold')
-    ax1.legend(fontsize=10)
+    # ax1.legend(fontsize=10)
     ax1.grid(alpha=0.3)
     
     # 2. Box plots (log scale)
@@ -1385,6 +1424,9 @@ def main():
     flux_df = flux_df.join(cell_metadata[metadata_cols], how='left')
     flux_df.rename(columns={celltype_col: 'cell_type'}, inplace=True)
     
+    # Clean cell type names
+    flux_df['cell_type'] = flux_df['cell_type'].apply(clean_cell_type_name)
+    
     # Filter out unwanted cell types
     flux_df = flux_df[~flux_df['cell_type'].isin(['Ignore', 'Inconclusive'])]
     
@@ -1399,7 +1441,7 @@ def main():
         value_name='flux'
     )
     
-    print(f"\nAnalyzing {flux_df['cell_type'].nunique()} cell types")
+    print(f"\nAnalysing {flux_df['cell_type'].nunique()} cell types")
     print(f"Stages: {flux_df['stage'].unique()}")
     
     # Create output directories
@@ -1449,6 +1491,7 @@ def main():
     all_results = []
     
     for cell_type in sorted(flux_df['cell_type'].unique()):
+        print(f"\nAnalysing {cell_type}...")
         # Perform analysis
         results_df = differential_flux_analysis_by_stage(
             flux_df, 

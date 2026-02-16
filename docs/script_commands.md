@@ -1,7 +1,5 @@
 # Example command line inputs for each script
 
-## Preprocessing script:
-
 ## scFEA script:
 
 ```

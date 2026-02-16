@@ -15,12 +15,139 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import yaml
 
-
 def load_config(config_path):
     """Load configuration from YAML file."""
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     return config
+
+def clean_cell_type_name(cell_type):
+    """
+    Clean cell type names by removing unnecessary 'Cells' suffix.
+    
+    Parameters
+    ----------
+    cell_type : str
+        Original cell type name
+        
+    Returns
+    -------
+    str
+        Cleaned cell type name
+    """
+    if pd.isna(cell_type):
+        return cell_type
+    
+    # Mapping for specific conversions
+    mapping = {
+        'Fibroblast Cells': 'Fibroblasts',
+        'Inner Fibroblast Cells': 'Inner Fibroblasts',
+        'Fibroblast Clec3b+ (outer/basal) Cells': 'Fibroblasts Clec3b+ (outer/basal)',
+        'Proliferating Fibroblast Cells': 'Proliferating Fibroblasts',
+        'Macrophage Cells': 'Macrophages',
+        'Monocyte Cells': 'Monocytes',
+        'Dendritic Monocyte Cells': 'Dendritic Monocytes',
+        'Luminal Epithelial Cells': 'Luminal Epithelium',
+        'Glandular Epithelial Cells': 'Glandular Epithelium',
+        'Vascular Smooth Muscle Cells': 'Vascular Smooth Muscle',
+        'Myometrial Cells': 'Myometrium',
+        'Vascular Endothelial Cells': 'Vascular Endothelium',
+        'Lymphatic Endothelial Cells': 'Lymphatic Endothelium',
+        'Mesothelial Cells': 'Mesothelium',
+        'Pericyte Cells': 'Pericytes',
+    }
+    
+    return mapping.get(cell_type, cell_type)
+
+def get_cell_type_colors():
+    """
+    Define color scheme for cell type categories.
+    All cell types in the same category get the same color.
+    
+    Returns
+    -------
+    dict
+        Mapping of cell type to color
+    """
+    # Define unified colors by category (muted palette)
+    colors = {
+        # Fibroblasts - muted blue
+        'Fibroblasts': "#5B7FA8",
+        'Inner Fibroblasts': '#5B7FA8',
+        'Fibroblasts Clec3b+ (outer/basal)': '#5B7FA8',
+        'Proliferating Fibroblasts': '#5B7FA8',
+        
+        # Immune cells - muted red
+        'T Cells': "#B85450",
+        'Macrophages': '#B85450',
+        'Natural Killer Cells': '#B85450',
+        'Monocytes': '#B85450',
+        'Regulatory T Cells': '#B85450',
+        'Dendritic Monocytes': '#B85450',
+        
+        # Epithelial cells - muted green
+        'Luminal Epithelium': '#689F68',
+        'Glandular Epithelium': '#689F68',
+        
+        # Muscle cells - muted purple
+        'Vascular Smooth Muscle': '#8B7FA8',
+        'Myometrium': '#8B7FA8',
+        
+        # Endothelial cells - muted teal
+        'Vascular Endothelium': "#5B9AAA",
+        'Lymphatic Endothelium': '#5B9AAA',
+        
+        # Other cell types
+        'Mesothelium': "#EEE061",  # muted yellow
+        'Pericytes': "#FFB169",  # muted orange
+        'Perivascular/ Mural Cells': "#9B5B98",  # muted magenta
+    }
+    
+    return colors
+
+def get_cell_type_categories():
+    """
+    Define cell type category mappings for legend.
+    
+    Returns
+    -------
+    dict
+        Mapping of category name to (color, cell_types_list)
+    """
+    categories = {
+        'Fibroblasts': {
+            'color': '#5B7FA8',
+            'cell_types': ['Fibroblasts', 'Inner Fibroblasts', 
+                          'Fibroblasts Clec3b+ (outer/basal)', 'Proliferating Fibroblasts']
+        },
+        'Immune Cells': {
+            'color': '#B85450',
+            'cell_types': ['T Cells', 'Macrophages', 'Natural Killer Cells', 
+                          'Monocytes', 'Regulatory T Cells', 'Dendritic Monocytes']
+        },
+        'Epithelial Cells': {
+            'color': '#689F68',
+            'cell_types': ['Luminal Epithelium', 'Glandular Epithelium']
+        },
+        'Muscle Cells': {
+            'color': '#8B7FA8',
+            'cell_types': ['Vascular Smooth Muscle', 'Myometrium']
+        },
+        'Endothelial Cells': {
+            'color': '#5B9AAA',
+            'cell_types': ['Vascular Endothelium', 'Lymphatic Endothelium']
+        },
+        'Mesothelial Cells': {
+            'color': "#EEE061",
+            'cell_types': ['Mesothelium']
+        },
+        'Pericytes/Mural Cells': {
+            'color': '#FFB169',
+            'cell_types': ['Pericytes', 'Perivascular/ Mural Cells']
+        },
+    }
+    
+    return categories
 
 
 def load_module_annotations(annotations_path=None):
@@ -159,68 +286,56 @@ def plot_flux_distribution(flux_df, output_path):
     threshold = flux_summary['mean_abs_flux'].quantile(0.75)
     flux_filtered = flux_summary[flux_summary['mean_abs_flux'] > threshold]
     
-    # Sort cell types by median of high-flux reactions
-    cell_type_order = flux_filtered.groupby('cell_type')['mean_abs_flux'].median().sort_values(ascending=False).index
+    # Sort cell types by median flux (reversed for horizontal display)
+    cell_type_order = flux_filtered.groupby('cell_type')['mean_abs_flux'].median().sort_values(ascending=True).index.tolist()
     
-    # Calculate mean flux for each cell type for color mapping
-    cell_type_means = flux_filtered.groupby('cell_type')['mean_abs_flux'].mean()
-    mean_values = [cell_type_means[ct] for ct in cell_type_order]
+    # Get cell type colors
+    cell_type_colors = get_cell_type_colors()
+    palette = [cell_type_colors.get(ct, '#7f7f7f') for ct in cell_type_order]
     
-    # Normalize mean values to [0, 1] for colourmap
-    from matplotlib.colors import Normalize
-    norm = Normalize(vmin=min(mean_values), vmax=max(mean_values))
-    cmap = plt.cm.Reds  # Red gradient colourmap (white to red)
+    fig, ax = plt.subplots(figsize=(14, 12))
     
-    fig, ax = plt.subplots(figsize=(18, 8))
-    
-    # Create violin plot to show distribution shape
-    parts = ax.violinplot(
-        [flux_filtered[flux_filtered['cell_type'] == ct]['mean_abs_flux'].values 
-         for ct in cell_type_order],
-        positions=range(len(cell_type_order)),
-        widths=0.7,
+    # Use seaborn for cleaner aesthetics
+    sns.boxplot(
+        data=flux_filtered,
+        y='cell_type',
+        x='mean_abs_flux',
+        order=cell_type_order,
+        palette=palette,
+        ax=ax,
         showmeans=True,
-        showmedians=True
+        meanprops=dict(marker='o', markerfacecolor='black', markeredgecolor='black', markersize=8, zorder=3),
+        linewidth=1.5,
+        fliersize=3
     )
     
-    # Colour the violins based on mean flux (red gradient)
-    for i, pc in enumerate(parts['bodies']):
-        pc.set_facecolor(cmap(norm(mean_values[i])))
-        pc.set_alpha(0.8)
-        pc.set_edgecolor('black')
-        pc.set_linewidth(1)
-    
-    # Style the statistical lines
-    parts['cmeans'].set_color('red')
-    parts['cmeans'].set_linewidth(2)
-    parts['cmedians'].set_color('black')
-    parts['cmedians'].set_linewidth(2),
-    parts['cbars'].set_color('black'),
-    parts['cmins'].set_color('black'),
-    parts['cmaxes'].set_color('black')
-    
-    ax.set_xticks(range(len(cell_type_order)))
-    ax.set_xticklabels(cell_type_order, rotation=90, ha='right')
-    ax.set_ylabel('Module Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
-    ax.set_xlabel('Cell Type (ordered by median flux)', fontsize=12, fontweight='bold')
+    ax.set_xlabel('Module Flux (mmol/gDW/h)', fontsize=16, fontweight='bold')
+    ax.set_ylabel('Cell Type (ordered by median flux)', fontsize=16, fontweight='bold')
     ax.set_title('Distribution of High-Activity Metabolic Modules Across Cell Types\n(Top 25% most active modules)', 
-                 fontsize=14, fontweight='bold', pad=20)
-    ax.grid(axis='y', alpha=0.3)
+                 fontsize=18, fontweight='bold', pad=20)
+    ax.tick_params(axis='x', labelsize=14)
+    ax.tick_params(axis='y', labelsize=14)
+    ax.grid(axis='x', alpha=0.3, linestyle='--', linewidth=0.5)
     
-    # Add colorbar legend showing the flux gradient
-    from matplotlib.cm import ScalarMappable
-    sm = ScalarMappable(cmap=cmap, norm=norm)
-    sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax, pad=0.02)
-    cbar.set_label('Mean Metabolic Flux\n(mmol/gDW/h)', fontsize=11, fontweight='bold')
-    
-    # Add legend for statistical lines
+    # Add legend for statistical lines and categories
     from matplotlib.lines import Line2D
-    legend_elements = [
-        Line2D([0], [0], color='red', linewidth=2, label='Mean'),
+    from matplotlib.patches import Patch
+    
+    # Statistical elements
+    stat_elements = [
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='black', 
+               markeredgecolor='black', markersize=8, label='Mean'),
         Line2D([0], [0], color='black', linewidth=2, label='Median')
     ]
-    ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
+    
+    # Category colors
+    categories = get_cell_type_categories()
+    category_elements = [Patch(facecolor=cat_info['color'], edgecolor='black', label=cat_name) 
+                        for cat_name, cat_info in categories.items()]
+    
+    # Combine legends
+    ax.legend(handles=stat_elements + category_elements, loc='upper right', fontsize=12, 
+             ncol=1, title='Legend', title_fontsize=13)
     
     plt.tight_layout()
     plt.savefig(output_path, dpi=300)
@@ -261,24 +376,22 @@ def plot_flux_distribution_by_stage(flux_df, output_path):
     if 'estrus' in stages and 'diestrus' in stages:
         stages = ['estrus', 'diestrus']
     
-    # Sort cell types by overall median flux
-    cell_type_order = flux_filtered.groupby('cell_type')['mean_abs_flux'].median().sort_values(ascending=False).index
+    # Sort cell types by overall mean flux
+    cell_type_order = flux_filtered.groupby('cell_type')['mean_abs_flux'].mean().sort_values(ascending=False).index
     
-    # Create single figure with paired violins
-    fig, ax = plt.subplots(figsize=(20, 8))
+    # Create single figure with paired bars
+    fig, ax = plt.subplots(figsize=(18, 8))
     
     # Color scheme: estrus = red, diestrus = slateblue
     stage_colors = {'estrus': 'red', 'diestrus': 'slateblue'}
     
-    # Calculate positions for paired violins
+    # Calculate positions for paired bars
     # Each cell type gets 2 positions (estrus and diestrus) with a gap between cell types
     spacing = 3  # Space between cell type pairs
-    violin_width = 1.0
+    bar_width = 0.9
     
-    all_parts = []
-    all_positions = []
-    all_colors = []
-    
+    # Calculate statistics for each cell type and stage
+    bar_data = []
     for i, cell_type in enumerate(cell_type_order):
         base_pos = i * spacing
         
@@ -287,52 +400,167 @@ def plot_flux_distribution_by_stage(flux_df, output_path):
                                        (flux_filtered['cell_type'] == cell_type)]
             
             if len(stage_data) > 0:
-                pos = base_pos + j * violin_width
-                all_positions.append(pos)
+                values = stage_data['mean_abs_flux'].values
+                pos = base_pos + j * bar_width
                 
-                # Create individual violin plot
-                parts = ax.violinplot(
-                    [stage_data['mean_abs_flux'].values],
-                    positions=[pos],
-                    widths=violin_width * 0.9,
-                    showmeans=True,
-                    showmedians=True
-                )
+                # Calculate statistics
+                mean_val = np.mean(values)
+                median_val = np.median(values)
+                min_val = np.min(values)
+                max_val = np.max(values)
                 
-                # Color the violin
-                for pc in parts['bodies']:
-                    pc.set_facecolor(stage_colors[stage])
-                    pc.set_alpha(0.7)
-                    pc.set_edgecolor('black')
-                    pc.set_linewidth(1)
-                
-                # Style the statistical lines
-                parts['cmeans'].set_color('darkred')
-                parts['cmeans'].set_linewidth(1.5)
-                parts['cmedians'].set_color('black')
-                parts['cmedians'].set_linewidth(1.5)
-                parts['cbars'].set_color('black')
-                parts['cmins'].set_color('black')
-                parts['cmaxes'].set_color('black')
+                bar_data.append({
+                    'pos': pos,
+                    'mean': mean_val,
+                    'median': median_val,
+                    'min': min_val,
+                    'max': max_val,
+                    'stage': stage,
+                    'cell_type': cell_type
+                })
+    
+    # Plot bars with error bars showing range
+    for data in bar_data:
+        # Draw bar (height = mean)
+        bar = ax.bar(data['pos'], data['mean'], bar_width * 0.85,
+                     color=stage_colors[data['stage']], alpha=0.7, 
+                     edgecolor='black', linewidth=1)
+        
+        # Add whiskers showing range (min to max)
+        ax.plot([data['pos'], data['pos']], [data['min'], data['max']],
+                color='black', linewidth=1.5, zorder=10)
+        
+        # Add caps at the ends of whiskers
+        cap_width = bar_width * 0.2
+        ax.plot([data['pos'] - cap_width, data['pos'] + cap_width], 
+                [data['min'], data['min']], color='black', linewidth=1.5, zorder=10)
+        ax.plot([data['pos'] - cap_width, data['pos'] + cap_width], 
+                [data['max'], data['max']], color='black', linewidth=1.5, zorder=10)
+        
+        # Add median marker
+        ax.plot(data['pos'], data['median'], marker='_', markersize=15,
+                color='black', linewidth=2.5, zorder=11)
     
     # Set x-axis ticks at the center of each cell type pair
-    cell_type_centers = [i * spacing + violin_width / 2 for i in range(len(cell_type_order))]
+    cell_type_centers = [i * spacing + bar_width / 2 for i in range(len(cell_type_order))]
     ax.set_xticks(cell_type_centers)
-    ax.set_xticklabels(cell_type_order, rotation=90, ha='right', fontsize=9)
+    ax.set_xticklabels(cell_type_order, rotation=90, ha='right', fontsize=12)
     
-    ax.set_ylabel('Mean Module Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
-    ax.set_xlabel('Cell Type', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Mean Module Flux (mmol/gDW/h)', fontsize=16, fontweight='bold')
+    ax.set_xlabel('Cell Type', fontsize=16, fontweight='bold')
     ax.set_title('Distribution of High-Activity Metabolic Modules by Stage\n(Top 25% most active modules)', 
                  fontsize=16, fontweight='bold', pad=20)
-    ax.grid(axis='y', alpha=0.3)
+    ax.set_yscale('log')
+    ax.grid(axis='y', alpha=0.3, which='both')  # Show grid for both major and minor ticks on log scale
+    
+    # # Add legend
+    # from matplotlib.patches import Patch
+    # from matplotlib.lines import Line2D
+    # legend_elements = [
+    #     Patch(facecolor='red', alpha=0.7, edgecolor='black', label='Estrus'),
+    #     Patch(facecolor='slateblue', alpha=0.7, edgecolor='black', label='Diestrus'),
+    #     Line2D([0], [0], color='black', linewidth=2.5, marker='_', markersize=10, label='Median'),
+    #     Line2D([0], [0], color='black', linewidth=1.5, label='Range (whiskers)')
+    # ]
+    # ax.legend(handles=legend_elements, loc='upper right', fontsize=11, framealpha=0.95)
+    
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print(f"Saved stage-specific distribution plot to {output_path}")
+
+
+def plot_cell_counts_by_stage(flux_df, output_path):
+    """
+    Create dumbbell plot showing cell counts per cell type, separated by stage.
+    
+    Parameters
+    ----------
+    flux_df : pd.DataFrame
+        Flux results with 'cell_type', 'stage', and 'cell_id' columns (in long format)
+    output_path : Path
+        Output file path
+    """
+    print(f"Creating cell count distribution by stage (dumbbell plot)...")
+    
+    # Check if stage column exists
+    if 'stage' not in flux_df.columns:
+        print(f"Warning: No 'stage' column found in data. Skipping stage-specific cell counts.")
+        return
+    
+    # Count unique cells per cell type and stage
+    cell_counts = flux_df.groupby(['cell_type', 'stage'])['cell_id'].nunique().reset_index(name='count')
+    
+    # Get unique stages - force to only use estrus and diestrus
+    stages = ['estrus', 'diestrus']
+    
+    # Filter cell_counts to only these stages
+    cell_counts = cell_counts[cell_counts['stage'].isin(stages)]
+    
+    # Sort cell types by total count across stages and ensure unique
+    cell_type_totals = cell_counts.groupby('cell_type')['count'].sum().sort_values(ascending=False)
+    cell_type_order = cell_type_totals.index.unique().tolist()
+    
+    print(f"Plotting {len(cell_type_order)} cell types across {len(stages)} stages")
+    
+    # Prepare data for dumbbell plot
+    plot_data = []
+    for cell_type in cell_type_order:
+        estrus_data = cell_counts[(cell_counts['cell_type'] == cell_type) & 
+                                  (cell_counts['stage'] == 'estrus')]
+        diestrus_data = cell_counts[(cell_counts['cell_type'] == cell_type) & 
+                                    (cell_counts['stage'] == 'diestrus')]
+        
+        estrus_count = estrus_data['count'].values[0] if len(estrus_data) > 0 else 0
+        diestrus_count = diestrus_data['count'].values[0] if len(diestrus_data) > 0 else 0
+        
+        plot_data.append({
+            'cell_type': cell_type,
+            'estrus': estrus_count,
+            'diestrus': diestrus_count
+        })
+    
+    # Create figure
+    fig, ax = plt.subplots(figsize=(12, 10))
+    
+    # Color scheme: estrus = red, diestrus = slateblue
+    stage_colors = {'estrus': 'red', 'diestrus': 'slateblue'}
+    
+    # Plot dumbbell chart
+    y_positions = np.arange(len(plot_data))
+    
+    for i, data in enumerate(plot_data):
+        estrus_val = data['estrus']
+        diestrus_val = data['diestrus']
+        
+        # Draw connecting line
+        ax.plot([estrus_val, diestrus_val], [i, i], 
+               color='gray', linewidth=2, alpha=0.6, zorder=1)
+        
+        # Draw dots
+        ax.scatter(estrus_val, i, color=stage_colors['estrus'], 
+                  s=150, alpha=0.8, edgecolor='black', linewidth=1, zorder=2)
+        ax.scatter(diestrus_val, i, color=stage_colors['diestrus'], 
+                  s=150, alpha=0.8, edgecolor='black', linewidth=1, zorder=2)
+    
+    # Customize plot
+    ax.set_yticks(y_positions)
+    ax.set_yticklabels([d['cell_type'] for d in plot_data], fontsize=10)
+    ax.set_xlabel('Number of Cells', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Cell Type', fontsize=12, fontweight='bold')
+    ax.set_title('Cell Count Distribution by Cell Type and Stage', 
+                 fontsize=14, fontweight='bold', pad=20)
+    ax.set_xscale('log')
+    ax.grid(axis='x', alpha=0.3)
     
     # Add legend
-    from matplotlib.patches import Patch
+    from matplotlib.lines import Line2D
     legend_elements = [
-        Patch(facecolor='red', alpha=0.7, edgecolor='black', label='Estrus'),
-        Patch(facecolor='slateblue', alpha=0.7, edgecolor='black', label='Diestrus'),
-        plt.Line2D([0], [0], color='darkred', linewidth=1.5, label='Mean'),
-        plt.Line2D([0], [0], color='black', linewidth=1.5, label='Median')
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='red', 
+               markersize=10, alpha=0.8, markeredgecolor='black', label='Estrus'),
+        Line2D([0], [0], marker='o', color='w', markerfacecolor='slateblue', 
+               markersize=10, alpha=0.8, markeredgecolor='black', label='Diestrus')
     ]
     ax.legend(handles=legend_elements, loc='upper right', fontsize=11, framealpha=0.95)
     
@@ -340,7 +568,18 @@ def plot_flux_distribution_by_stage(flux_df, output_path):
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     plt.close()
     
-    print(f"Saved stage-specific distribution plot to {output_path}")
+    # Print summary
+    print("\nCell Count Summary:")
+    summary_pivot = cell_counts.pivot(index='cell_type', columns='stage', values='count').fillna(0)
+    summary_pivot = summary_pivot.loc[cell_type_order]
+    print(summary_pivot.to_string())
+    print(f"\nTotal cells per stage:")
+    for stage in stages:
+        total = cell_counts[cell_counts['stage'] == stage]['count'].sum()
+        print(f"  {stage}: {int(total)}")
+    
+    print(f"Saved cell count plot to {output_path}")
+
 
 
 def plot_pathway_comparison(flux_df, output_path, annotations=None, pathway_reactions=None):
@@ -406,9 +645,13 @@ def plot_pathway_comparison(flux_df, output_path, annotations=None, pathway_reac
     else:
         y_labels = flux_pivot.index
     
+    # Get cell type colors for the legend
+    cell_type_colors_dict = get_cell_type_colors()
+    colors = [cell_type_colors_dict.get(ct, '#7f7f7f') for ct in flux_pivot.columns]
+    
     fig, ax = plt.subplots(figsize=(12, 8))
     
-    flux_pivot.plot(kind='barh', ax=ax, width=0.8)
+    flux_pivot.plot(kind='barh', ax=ax, width=0.8, color=colors, edgecolor='black', linewidth=0.5)
     ax.set_yticklabels(y_labels, fontsize=9)
     ax.set_xlabel('Mean Absolute Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
     ax.set_ylabel('Metabolic Module', fontsize=12, fontweight='bold')
@@ -444,46 +687,63 @@ def plot_metabolic_summary(flux_df, output_dir):
         ('Max Flux', lambda x: np.abs(x).max())
     ]).reset_index()
     
-    # Sort by mean flux for consistent ordering
+    # Sort by mean flux for consistent ordering across all plots
     summary_stats = summary_stats.sort_values('Mean Flux', ascending=False)
+    
+    # Get cell type colors
+    cell_type_colors = get_cell_type_colors()
+    colors = [cell_type_colors.get(ct, '#7f7f7f') for ct in summary_stats['cell_type']]
     
     # Get file extension from output_dir parent
     fmt = 'png'  # default
     
-    # Plot 1: Mean absolute flux
+    # Create category legend
+    from matplotlib.patches import Patch
+    categories = get_cell_type_categories()
+    legend_elements = [Patch(facecolor=cat_info['color'], edgecolor='black', label=cat_name) 
+                      for cat_name, cat_info in categories.items()]
+    
+    # Plot 1: Mean absolute flux (already sorted by Mean Flux)
     fig, ax = plt.subplots(figsize=(14, 6))
-    ax.bar(summary_stats['cell_type'], summary_stats['Mean Flux'])
+    ax.bar(summary_stats['cell_type'], summary_stats['Mean Flux'], color=colors, edgecolor='black', linewidth=0.5)
     ax.set_xlabel('Cell Type', fontsize=12)
     ax.set_ylabel('Mean Absolute Flux', fontsize=12)
     ax.set_title('Average Metabolic Activity', fontsize=14, fontweight='bold')
     ax.tick_params(axis='x', rotation=90, labelsize=10)
     ax.grid(axis='y', alpha=0.3)
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=9, title='Cell Type Category')
     plt.tight_layout()
-    plt.savefig(output_dir / f'metabolic_summary_mean.{fmt}', dpi=300)
+    plt.savefig(output_dir / f'metabolic_summary_mean.{fmt}', dpi=300, bbox_inches='tight')
     plt.close()
     
-    # Plot 2: Number of active reactions
+    # Plot 2: Number of active reactions (sort by Active Reactions)
+    summary_breadth = summary_stats.sort_values('Active Reactions', ascending=False)
+    colors_breadth = [cell_type_colors.get(ct, '#7f7f7f') for ct in summary_breadth['cell_type']]
     fig, ax = plt.subplots(figsize=(14, 6))
-    ax.bar(summary_stats['cell_type'], summary_stats['Active Reactions'])
+    ax.bar(summary_breadth['cell_type'], summary_breadth['Active Reactions'], color=colors_breadth, edgecolor='black', linewidth=0.5)
     ax.set_xlabel('Cell Type', fontsize=12)
     ax.set_ylabel('Number of Active Reactions', fontsize=12)
     ax.set_title('Metabolic Pathway Breadth', fontsize=14, fontweight='bold')
     ax.tick_params(axis='x', rotation=90, labelsize=10)
     ax.grid(axis='y', alpha=0.3)
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=9, title='Cell Type Category')
     plt.tight_layout()
-    plt.savefig(output_dir / f'metabolic_summary_breadth.{fmt}', dpi=300)
+    plt.savefig(output_dir / f'metabolic_summary_breadth.{fmt}', dpi=300, bbox_inches='tight')
     plt.close()
     
-    # Plot 3: Maximum flux
+    # Plot 3: Maximum flux (sort by Max Flux)
+    summary_peak = summary_stats.sort_values('Max Flux', ascending=False)
+    colors_peak = [cell_type_colors.get(ct, '#7f7f7f') for ct in summary_peak['cell_type']]
     fig, ax = plt.subplots(figsize=(14, 6))
-    ax.bar(summary_stats['cell_type'], summary_stats['Max Flux'])
+    ax.bar(summary_peak['cell_type'], summary_peak['Max Flux'], color=colors_peak, edgecolor='black', linewidth=0.5)
     ax.set_xlabel('Cell Type', fontsize=12)
     ax.set_ylabel('Maximum Absolute Flux', fontsize=12)
     ax.set_title('Peak Metabolic Activity', fontsize=14, fontweight='bold')
     ax.tick_params(axis='x', rotation=90, labelsize=10)
     ax.grid(axis='y', alpha=0.3)
+    ax.legend(handles=legend_elements, loc='upper right', fontsize=9, title='Cell Type Category')
     plt.tight_layout()
-    plt.savefig(output_dir / f'metabolic_summary_peak.{fmt}', dpi=300)
+    plt.savefig(output_dir / f'metabolic_summary_peak.{fmt}', dpi=300, bbox_inches='tight')
     plt.close()
     
     print(f"Saved summary plots to {output_dir}")
@@ -543,11 +803,34 @@ def plot_flux_by_category_and_stage(flux_df, output_path, annotations=None):
         lambda x: np.abs(x).mean()
     ).reset_index(name='mean_flux')
     
-    # Get unique stages
-    stages = sorted(category_flux['stage'].unique())
+    # Get unique stages - explicitly order as estrus (left) then diestrus (right) to reflect cycle sequence
+    unique_stages = category_flux['stage'].unique()
+    if 'estrus' in unique_stages and 'diestrus' in unique_stages:
+        stages = ['estrus', 'diestrus']
+    else:
+        stages = sorted(unique_stages)
+    
     if len(stages) < 2:
         print(f"Warning: Only {len(stages)} stage(s) found. Need at least 2 for comparison.")
         return
+    
+    # Perform statistical tests for each category
+    from scipy.stats import mannwhitneyu
+    
+    p_values = {}
+    for pathway in flux_with_category['pathway'].unique():
+        pathway_data = flux_with_category[flux_with_category['pathway'] == pathway]
+        
+        # Get absolute flux values for each stage
+        stage1_data = pathway_data[pathway_data['stage'] == stages[0]]['flux'].abs()
+        stage2_data = pathway_data[pathway_data['stage'] == stages[1]]['flux'].abs()
+        
+        if len(stage1_data) > 0 and len(stage2_data) > 0:
+            # Mann-Whitney U test (non-parametric)
+            statistic, p_val = mannwhitneyu(stage1_data, stage2_data, alternative='two-sided')
+            p_values[pathway] = p_val
+        else:
+            p_values[pathway] = 1.0  # No significant difference if no data
     
     # Pivot for easier plotting
     category_pivot = category_flux.pivot(
@@ -576,13 +859,46 @@ def plot_flux_by_category_and_stage(flux_df, output_path, annotations=None):
         ax.bar(x + offset, category_pivot[stage], width, 
                label=stage.capitalize(), color=color, alpha=0.8, edgecolor='black')
     
-    ax.set_xlabel('Metabolic Category', fontsize=12, fontweight='bold')
-    ax.set_ylabel('Mean Metabolic Flux (mmol/gDW/h)', fontsize=12, fontweight='bold')
+    # Add significance markers
+    max_flux = category_pivot.max(axis=1)
+    for i, pathway in enumerate(category_pivot.index):
+        p_val = p_values.get(pathway, 1.0)
+        
+        # Determine significance level
+        if p_val < 0.001:
+            sig_marker = '***'
+        elif p_val < 0.01:
+            sig_marker = '**'
+        elif p_val < 0.05:
+            sig_marker = '*'
+        else:
+            sig_marker = 'ns'
+        
+        # Only show significant markers
+        if sig_marker != 'ns':
+            y_pos = max_flux[pathway] * 1.05
+            ax.text(x[i], y_pos, sig_marker, ha='center', va='bottom', 
+                   fontsize=12, fontweight='bold')
+    
+    ax.set_xlabel('Metabolic Category', fontsize=14, fontweight='bold')
+    ax.set_ylabel('Mean Metabolic Flux (mmol/gDW/h)', fontsize=14, fontweight='bold')
     ax.set_title('Metabolic Activity by Category Across Cycle Stages', 
                  fontsize=14, fontweight='bold', pad=20)
     ax.set_xticks(x)
-    ax.set_xticklabels(category_pivot.index, rotation=90, ha='right', fontsize=10)
-    ax.legend(title='Cycle Stage', fontsize=11, title_fontsize=12)
+    ax.set_xticklabels(category_pivot.index, rotation=45, ha='right', fontsize=14)
+    
+    # Add legend with significance explanation
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Line2D([0], [0], color='red', lw=4, label='Estrus', alpha=0.8),
+        Line2D([0], [0], color='slateblue', lw=4, label='Diestrus', alpha=0.8),
+        Line2D([0], [0], color='black', marker='$***$', markersize=12, 
+               label='p < 0.001', linestyle='None', markeredgewidth=0),
+        Line2D([0], [0], color='black', marker='$**$', markersize=12, 
+               label='p < 0.01', linestyle='None', markeredgewidth=0)
+    ]
+    ax.legend(handles=legend_elements, title='Cycle Stage / Significance', 
+             fontsize=12, title_fontsize=12, loc='upper right')
     ax.grid(axis='y', alpha=0.3)
     
     plt.tight_layout()
@@ -592,6 +908,20 @@ def plot_flux_by_category_and_stage(flux_df, output_path, annotations=None):
     # Print summary statistics
     print("\nMetabolic Category Activity Summary:")
     print(category_pivot.to_string())
+    
+    # Print statistical test results
+    print("\nStatistical Significance (Mann-Whitney U test):")
+    for pathway in category_pivot.index:
+        p_val = p_values.get(pathway, 1.0)
+        if p_val < 0.001:
+            sig = '***'
+        elif p_val < 0.01:
+            sig = '**'
+        elif p_val < 0.05:
+            sig = '*'
+        else:
+            sig = 'ns'
+        print(f"  {pathway}: p={p_val:.2e} ({sig})")
     
     # Calculate fold changes
     if 'estrus' in stages and 'diestrus' in stages:
@@ -708,7 +1038,7 @@ def plot_flux_vs_gene_count(flux_df, output_path, module_gene_file=None):
     
     # Linear scale scatter plot
     axes[0].scatter(analysis_df['gene_count'], analysis_df['mean_flux'], 
-                    alpha=0.6, s=50, color='cyan')
+                    alpha=0.6, s=50, color='deepskyblue')
     axes[0].set_xlabel('Number of Genes in Module', fontsize=11, fontweight='bold')
     axes[0].set_ylabel('Mean Metabolic Flux', fontsize=11, fontweight='bold')
     axes[0].set_title(f'Flux vs. Gene Count per Module\nPearson r={pearson_r:.3f}, p={pearson_p:.2e}', 
@@ -725,7 +1055,7 @@ def plot_flux_vs_gene_count(flux_df, output_path, module_gene_file=None):
     
     # Log-scale version
     axes[1].scatter(analysis_df['gene_count'], analysis_df['mean_flux'], 
-                    alpha=0.6, s=50, color='orange')
+                    alpha=0.6, s=50, color='mediumblue')
     axes[1].set_xlabel('Number of Genes in Module', fontsize=11, fontweight='bold')
     axes[1].set_ylabel('Mean Metabolic Flux (log scale)', fontsize=11, fontweight='bold')
     axes[1].set_yscale('log')
@@ -818,6 +1148,9 @@ def main():
     flux_df = flux_df.join(cell_metadata[metadata_cols_to_join], how='left')
     flux_df.rename(columns={celltype_col: 'cell_type'}, inplace=True)
     
+    # Clean cell type names
+    flux_df['cell_type'] = flux_df['cell_type'].apply(clean_cell_type_name)
+    
     # Filter out 'Ignore' and 'Inconclusive' cell types
     flux_df = flux_df[~flux_df['cell_type'].isin(['Ignore', 'Inconclusive'])]
     
@@ -825,9 +1158,12 @@ def main():
     # Get module columns (M_1, M_2, etc.)
     module_cols = [col for col in flux_df.columns if col.startswith('M_')]
     
+    # Preserve cell identifiers by resetting index to a column before melting
+    flux_df = flux_df.reset_index(names='cell_id')
+    
     # Determine which metadata columns to preserve during melt
-    id_vars = ['cell_type']
-    cols_to_keep = module_cols + ['cell_type']
+    id_vars = ['cell_id', 'cell_type']
+    cols_to_keep = module_cols + ['cell_id', 'cell_type']
     if 'stage' in flux_df.columns:
         id_vars.append('stage')
         cols_to_keep.append('stage')
@@ -863,6 +1199,11 @@ def main():
     plot_flux_distribution_by_stage(
         flux_df,
         output_dir / f'flux_distribution_by_stage.{fmt}'
+    )
+    
+    plot_cell_counts_by_stage(
+        flux_df,
+        output_dir / f'cell_counts_by_stage.{fmt}'
     )
     
     plot_flux_by_category_and_stage(
